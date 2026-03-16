@@ -1,7 +1,7 @@
 {
-  "name": "discord-clone",
-  "version": "1.0.0",
-  "description": "A Discord-like real-time chat app",
+  "name": "cord-chat",
+  "version": "2.0.0",
+  "description": "Discord-like real-time chat",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
