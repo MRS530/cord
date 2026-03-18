@@ -283,7 +283,7 @@ input,textarea{font-family:inherit;}
 .me-icon:hover{background:var(--bg-modifier-hover);color:var(--interactive-active);}
 
 /* ── Main Content ── */
-#main-content{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg-raised);}
+#main-content{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;background:var(--bg-raised);}
 
 /* Chat header */
 #content-header{
@@ -763,7 +763,7 @@ input,textarea{font-family:inherit;}
     </div>
 
     <!-- Chat View -->
-    <div id="view-chat" style="display:none;flex:1;flex-direction:column;min-width:0;">
+    <div id="view-chat" style="display:none;flex:1;flex-direction:column;min-width:0;min-height:0;overflow:hidden;">
       <div id="content-header">
         <span class="hdr-ch-icon">#</span>
         <span class="hdr-ch-name" id="hdr-channel-name">general</span>
@@ -800,13 +800,13 @@ input,textarea{font-family:inherit;}
     </div>
 
     <!-- DM Chat View -->
-    <div id="view-dm" style="display:none;flex:1;flex-direction:column;min-width:0;">
+    <div id="view-dm" style="display:none;flex:1;flex-direction:column;min-width:0;min-height:0;overflow:hidden;">
       <div id="dm-header">
         <div class="me-avatar" id="dm-peer-avatar" style="background:var(--brand);width:32px;height:32px;font-size:12px;margin-top:0;">?</div>
         <span class="dm-header-name" id="dm-peer-name">?</span>
       </div>
-      <div id="dm-messages-container" style="flex:1;overflow-y:auto;">
-        <div id="dm-messages-list"></div>
+      <div id="dm-messages-container" style="flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;">
+        <div id="dm-messages-list" style="display:flex;flex-direction:column;padding:16px 0 8px;"></div>
       </div>
       <div style="padding:0 16px 20px;flex-shrink:0;">
         <div style="background:var(--bg-float);border-radius:var(--r8);display:flex;align-items:flex-end;border:1.5px solid transparent;transition:border-color .2s;" id="dm-input-wrapper" onfocusin="this.style.borderColor='rgba(255,255,255,.04)'" onfocusout="this.style.borderColor='transparent'">
