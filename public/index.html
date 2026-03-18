@@ -442,7 +442,77 @@ input,textarea{font-family:inherit;}
 .member-name{font-size:15px;color:var(--interactive-normal);font-weight:600;}
 .member-row:hover .member-name{color:var(--interactive-active);}
 
-/* ── Welcome/Empty states ── */
+/* ── Profile Popup ── */
+#profile-popup{
+  position:fixed;bottom:64px;left:8px;
+  width:300px;background:var(--bg-mid);
+  border-radius:var(--r16);
+  box-shadow:0 8px 32px rgba(0,0,0,.6);
+  border:1px solid var(--divider);
+  z-index:400;display:none;
+  overflow:hidden;
+  animation:authIn .2s cubic-bezier(.4,0,.2,1) both;
+}
+#profile-popup.open{display:block;}
+.pp-banner{height:60px;background:var(--brand);position:relative;flex-shrink:0;}
+.pp-avatar-wrap{position:absolute;bottom:-20px;left:16px;}
+.pp-avatar{
+  width:56px;height:56px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:800;color:#fff;
+  border:4px solid var(--bg-mid);
+}
+.pp-body{padding:28px 16px 8px;}
+.pp-name{font-size:17px;font-weight:800;color:var(--header-primary);}
+.pp-tag{font-size:12px;color:var(--text-muted);margin-bottom:8px;}
+.pp-bio{font-size:13px;color:var(--text-normal);margin-bottom:12px;line-height:1.4;min-height:16px;}
+.pp-divider{height:1px;background:var(--divider);margin:0 -16px 8px;}
+.pp-btn{
+  width:100%;padding:9px 12px;border:none;border-radius:var(--r8);
+  background:transparent;color:var(--interactive-normal);
+  font-size:14px;font-weight:600;text-align:left;
+  display:flex;align-items:center;gap:10px;
+  transition:background .1s,color .1s;cursor:pointer;
+}
+.pp-btn:hover{background:var(--bg-modifier-hover);color:var(--interactive-active);}
+.pp-btn.danger{color:var(--red);}
+.pp-btn.danger:hover{background:rgba(242,63,67,.1);}
+.pp-btn-icon{font-size:17px;width:20px;text-align:center;}
+.status-row{display:flex;gap:6px;padding:8px 0;}
+.status-opt{
+  flex:1;padding:7px 4px;border:none;border-radius:var(--r8);
+  background:var(--bg-float);color:var(--text-muted);
+  font-size:11px;font-weight:700;text-align:center;
+  cursor:pointer;transition:all .15s;
+}
+.status-opt:hover{background:var(--bg-modifier-active);}
+.status-opt.active{color:#fff;}
+.status-opt[data-s="online"].active{background:#23a55a;}
+.status-opt[data-s="idle"].active{background:#f0b232;}
+.status-opt[data-s="dnd"].active{background:#f23f43;}
+.status-opt[data-s="invisible"].active{background:#80848e;}
+
+/* ── Reply bar ── */
+#reply-bar{
+  display:none;padding:6px 16px;
+  background:var(--bg-float);
+  border-top:1px solid var(--divider);
+  font-size:13px;color:var(--text-muted);
+  flex-shrink:0;align-items:center;gap:8px;
+}
+#reply-bar.open{display:flex;}
+#reply-bar strong{color:var(--header-primary);}
+.reply-cancel{margin-left:auto;background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;padding:0 4px;line-height:1;}
+.reply-cancel:hover{color:var(--red);}
+.reply-preview{
+  background:var(--bg-base);border-left:3px solid var(--brand);
+  padding:4px 10px;border-radius:0 var(--r4) var(--r4) 0;
+  font-size:13px;color:var(--text-muted);margin-bottom:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+/* delete btn red */
+.msg-action-btn.del{color:var(--red) !important;}
+.msg-action-btn.del:hover{background:rgba(242,63,67,.15) !important;}
 .empty-state{
   flex:1;display:flex;flex-direction:column;
   align-items:center;justify-content:center;
@@ -738,19 +808,50 @@ input,textarea{font-family:inherit;}
       <button class="panel-icon-btn" id="add-channel-btn" style="display:none;" onclick="openModal('create-channel')">+</button>
     </div>
     <div id="channel-list"></div>
-    <div id="me-bar">
+    <div id="me-bar" onclick="toggleProfilePopup()" style="cursor:pointer;">
       <div>
         <div class="me-avatar" id="me-avatar" style="background:var(--brand);">?
-          <div class="me-status-dot"></div>
+          <div class="me-status-dot" id="me-status-dot"></div>
         </div>
       </div>
       <div class="me-info">
         <div class="me-username" id="me-username">Loading...</div>
         <div class="me-tag" id="me-tag">online</div>
       </div>
-      <button class="me-icon" onclick="openModal('settings')">⚙️</button>
+      <button class="me-icon" onclick="event.stopPropagation();openModal('settings')">⚙️</button>
     </div>
   </div>
+
+<!-- Profile Popup -->
+<div id="profile-popup">
+  <div class="pp-banner" id="pp-banner"></div>
+  <div style="position:relative;">
+    <div class="pp-avatar-wrap">
+      <div class="pp-avatar" id="pp-avatar"></div>
+    </div>
+  </div>
+  <div class="pp-body">
+    <div class="pp-name" id="pp-name"></div>
+    <div class="pp-tag" id="pp-tag-line"></div>
+    <div class="pp-bio" id="pp-bio"></div>
+    <div class="status-row">
+      <button class="status-opt active" data-s="online" onclick="setStatus('online')">🟢 Online</button>
+      <button class="status-opt" data-s="idle" onclick="setStatus('idle')">🌙 Idle</button>
+      <button class="status-opt" data-s="dnd" onclick="setStatus('dnd')">⛔ DND</button>
+      <button class="status-opt" data-s="invisible" onclick="setStatus('invisible')">👻 Invis</button>
+    </div>
+    <div class="pp-divider"></div>
+    <button class="pp-btn" onclick="closeProfilePopup();openEditProfile()">
+      <span class="pp-btn-icon">✏️</span> Edit Profile
+    </button>
+    <button class="pp-btn" onclick="copyUserId()">
+      <span class="pp-btn-icon">🪪</span> Copy User ID
+    </button>
+    <button class="pp-btn danger" onclick="closeProfilePopup();doLogout()">
+      <span class="pp-btn-icon">🚪</span> Log Out
+    </button>
+  </div>
+</div>
 
   <!-- Main Content -->
   <div id="main-content">
@@ -777,6 +878,10 @@ input,textarea{font-family:inherit;}
         <div id="messages-list"></div>
       </div>
       <div id="typing-indicator"></div>
+      <div id="reply-bar">
+        <span>↩️ Replying to <strong id="reply-to-name"></strong>: <span id="reply-to-preview"></span></span>
+        <button class="reply-cancel" onclick="cancelReply()">✕</button>
+      </div>
       <div id="input-section">
         <div id="input-wrapper">
           <button class="input-prefix-btn" onclick="toggleEmojiPicker()">😊</button>
@@ -874,6 +979,37 @@ input,textarea{font-family:inherit;}
     <div class="modal-actions">
       <button class="modal-btn ghost" onclick="closeModal('settings')">Close</button>
       <button class="modal-btn danger" onclick="doLogout()">Log Out</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-edit-profile" style="display:none;" onclick="if(event.target===this)closeModal('edit-profile')">
+  <div class="modal-box">
+    <div class="modal-title">Edit Profile</div>
+    <div class="modal-field">
+      <label class="modal-label">Banner Color</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;" id="banner-color-picker">
+        <div onclick="selectBannerColor('#5865f2')" style="width:32px;height:32px;border-radius:50%;background:#5865f2;cursor:pointer;border:3px solid transparent;" data-color="#5865f2"></div>
+        <div onclick="selectBannerColor('#3ba55d')" style="width:32px;height:32px;border-radius:50%;background:#3ba55d;cursor:pointer;border:3px solid transparent;" data-color="#3ba55d"></div>
+        <div onclick="selectBannerColor('#ed4245')" style="width:32px;height:32px;border-radius:50%;background:#ed4245;cursor:pointer;border:3px solid transparent;" data-color="#ed4245"></div>
+        <div onclick="selectBannerColor('#faa61a')" style="width:32px;height:32px;border-radius:50%;background:#faa61a;cursor:pointer;border:3px solid transparent;" data-color="#faa61a"></div>
+        <div onclick="selectBannerColor('#eb459e')" style="width:32px;height:32px;border-radius:50%;background:#eb459e;cursor:pointer;border:3px solid transparent;" data-color="#eb459e"></div>
+        <div onclick="selectBannerColor('#00b0f4')" style="width:32px;height:32px;border-radius:50%;background:#00b0f4;cursor:pointer;border:3px solid transparent;" data-color="#00b0f4"></div>
+        <div onclick="selectBannerColor('#9b59b6')" style="width:32px;height:32px;border-radius:50%;background:#9b59b6;cursor:pointer;border:3px solid transparent;" data-color="#9b59b6"></div>
+        <div onclick="selectBannerColor('#1abc9c')" style="width:32px;height:32px;border-radius:50%;background:#1abc9c;cursor:pointer;border:3px solid transparent;" data-color="#1abc9c"></div>
+      </div>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Display Name</label>
+      <input class="modal-input" id="edit-display-name" placeholder="Your display name"/>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Bio</label>
+      <input class="modal-input" id="edit-bio" placeholder="Tell people a little about yourself"/>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn ghost" onclick="closeModal('edit-profile')">Cancel</button>
+      <button class="modal-btn primary" onclick="saveProfile()">Save</button>
     </div>
   </div>
 </div>
@@ -1212,18 +1348,19 @@ function scrollMessages(force) {
 function appendMessageEl(container, msg, compact, isDM) {
   const isMe = msg.userId === currentUser.id;
   const rxHtml = buildReactionsHTML(msg, isDM);
+  const replyHtml = msg.replyTo ? `<div class="reply-preview">↩️ ${esc(msg.replyToName)}: ${esc(msg.replyTo)}</div>` : '';
   if (compact) {
     const d = document.createElement('div');
     d.className = 'msg-group compact';
     d.dataset.mid = msg.id;
-    const toolbar = isDM ? '' : buildToolbar(msg.id);
-    d.innerHTML = `${toolbar}<div class="msg-body"><div class="msg-content">${esc(msg.text)}</div>${rxHtml}</div>`;
+    const toolbar = isDM ? '' : buildToolbar(msg.id, msg.userId, msg.text);
+    d.innerHTML = `${toolbar}<div class="msg-body">${replyHtml}<div class="msg-content">${esc(msg.text)}</div>${rxHtml}</div>`;
     container.appendChild(d);
   } else {
     const d = document.createElement('div');
     d.className = 'msg-group';
     d.dataset.mid = msg.id;
-    const toolbar = isDM ? '' : buildToolbar(msg.id);
+    const toolbar = isDM ? '' : buildToolbar(msg.id, msg.userId, msg.text);
     d.innerHTML = `
       ${toolbar}
       <div class="msg-avatar" style="background:${msg.color};">${esc(msg.avatar)}</div>
@@ -1232,6 +1369,7 @@ function appendMessageEl(container, msg, compact, isDM) {
           <span class="msg-author" style="color:${msg.color};">${esc(msg.username)}${isMe ? ` <span class="you-badge">YOU</span>` : ''}</span>
           <span class="msg-timestamp">${formatTime(msg.timestamp)}</span>
         </div>
+        ${replyHtml}
         <div class="msg-content">${esc(msg.text)}</div>
         ${rxHtml}
       </div>`;
@@ -1239,8 +1377,12 @@ function appendMessageEl(container, msg, compact, isDM) {
   }
 }
 
-function buildToolbar(msgId) {
-  return `<div class="msg-actions">${EMOJI_LIST.slice(0,6).map(e => `<button class="msg-action-btn" onclick="addReaction('${msgId}','${e}')">${e}</button>`).join('')}</div>`;
+function buildToolbar(msgId, msgUserId, msgText) {
+  const isMe = msgUserId === currentUser.id;
+  const reactionBtns = EMOJI_LIST.slice(0,4).map(e => `<button class="msg-action-btn" title="${e}" onclick="addReaction('${msgId}','${e}')">${e}</button>`).join('');
+  const replyBtn = `<button class="msg-action-btn" title="Reply" onclick="startReply('${msgId}','${msgUserId}')">↩️</button>`;
+  const deleteBtn = isMe ? `<button class="msg-action-btn del" title="Delete" onclick="deleteMessage('${msgId}')">🗑️</button>` : '';
+  return `<div class="msg-actions">${reactionBtns}${replyBtn}${deleteBtn}</div>`;
 }
 
 function buildReactionsHTML(msg, isDM) {
@@ -1269,9 +1411,14 @@ function sendMessage() {
   const input = document.getElementById('message-input');
   const text = input.value.trim();
   if (!text || !currentChannelId || !currentServerId) return;
-  socket.emit('send_message', { channelId: currentChannelId, serverId: currentServerId, text });
+  socket.emit('send_message', {
+    channelId: currentChannelId, serverId: currentServerId, text,
+    replyTo: replyingTo ? replyingTo.text.slice(0, 100) : null,
+    replyToName: replyingTo ? replyingTo.username : null,
+  });
   input.value = '';
   input.style.height = 'auto';
+  cancelReply();
   playSound('send');
 }
 
@@ -1701,6 +1848,15 @@ function connectSocket() {
     renderDMPanel();
   });
 
+  socket.on('message_deleted', ({ channelId, messageId }) => {
+    if (channelId === currentChannelId) {
+      document.querySelector(`[data-mid="${messageId}"]`)?.remove();
+      if (messageCache[channelId]) {
+        messageCache[channelId] = messageCache[channelId].filter(m => m.id !== messageId);
+      }
+    }
+  });
+
   socket.on('typing', ({ channelId, username }) => {
     if (channelId !== currentChannelId) return;
     const el = document.getElementById('typing-indicator');
@@ -1711,8 +1867,128 @@ function connectSocket() {
 }
 
 // ═══════════════════════════════════════
-// INPUT HANDLING
+// PROFILE POPUP
 // ═══════════════════════════════════════
+let profileData = { bannerColor: null, bio: '' };
+let currentStatus = 'online';
+let selectedBannerColor = null;
+
+function toggleProfilePopup() {
+  const p = document.getElementById('profile-popup');
+  if (p.classList.contains('open')) { closeProfilePopup(); return; }
+  // populate
+  document.getElementById('pp-avatar').textContent = avatarText(currentUser.displayName);
+  document.getElementById('pp-avatar').style.background = currentUser.color;
+  document.getElementById('pp-name').textContent = currentUser.displayName;
+  document.getElementById('pp-tag-line').textContent = '@' + currentUser.username;
+  document.getElementById('pp-bio').textContent = profileData.bio || '';
+  const banner = document.getElementById('pp-banner');
+  banner.style.background = profileData.bannerColor || currentUser.color;
+  // status buttons
+  document.querySelectorAll('.status-opt').forEach(b => {
+    b.classList.toggle('active', b.dataset.s === currentStatus);
+  });
+  p.classList.add('open');
+  setTimeout(() => document.addEventListener('click', outsideProfileClick), 0);
+}
+
+function closeProfilePopup() {
+  document.getElementById('profile-popup').classList.remove('open');
+  document.removeEventListener('click', outsideProfileClick);
+}
+
+function outsideProfileClick(e) {
+  if (!e.target.closest('#profile-popup') && !e.target.closest('#me-bar')) closeProfilePopup();
+}
+
+function setStatus(s) {
+  currentStatus = s;
+  document.querySelectorAll('.status-opt').forEach(b => b.classList.toggle('active', b.dataset.s === s));
+  const colors = { online: 'var(--green)', idle: 'var(--yellow)', dnd: 'var(--red)', invisible: '#80848e' };
+  const dots = document.querySelectorAll('.me-status-dot, #me-status-dot');
+  dots.forEach(d => d.style.background = colors[s] || 'var(--green)');
+  const labels = { online: 'online', idle: 'idle', dnd: 'do not disturb', invisible: 'invisible' };
+  document.getElementById('me-tag').textContent = labels[s] || s;
+}
+
+function copyUserId() {
+  navigator.clipboard?.writeText(currentUser.id);
+  showToast('User ID copied!', 'success');
+  closeProfilePopup();
+}
+
+// ═══════════════════════════════════════
+// EDIT PROFILE
+// ═══════════════════════════════════════
+function openEditProfile() {
+  document.getElementById('edit-display-name').value = currentUser.displayName;
+  document.getElementById('edit-bio').value = profileData.bio || '';
+  selectedBannerColor = profileData.bannerColor || currentUser.color;
+  updateBannerColorUI();
+  openModal('edit-profile');
+}
+
+function selectBannerColor(color) {
+  selectedBannerColor = color;
+  updateBannerColorUI();
+}
+
+function updateBannerColorUI() {
+  document.querySelectorAll('#banner-color-picker div').forEach(el => {
+    el.style.border = el.dataset.color === selectedBannerColor ? '3px solid white' : '3px solid transparent';
+  });
+}
+
+function saveProfile() {
+  const name = document.getElementById('edit-display-name').value.trim();
+  const bio = document.getElementById('edit-bio').value.trim();
+  if (name) {
+    currentUser.displayName = name;
+    document.getElementById('me-username').textContent = name;
+    document.getElementById('me-avatar').childNodes[0].textContent = avatarText(name);
+  }
+  if (selectedBannerColor) profileData.bannerColor = selectedBannerColor;
+  profileData.bio = bio;
+  closeModal('edit-profile');
+  showToast('Profile updated!', 'success');
+}
+
+// ═══════════════════════════════════════
+// REPLY
+// ═══════════════════════════════════════
+let replyingTo = null;
+
+function startReply(msgId, msgUserId) {
+  const msgEl = document.querySelector(`[data-mid="${msgId}"]`);
+  const text = msgEl?.querySelector('.msg-content')?.textContent || '';
+  const username = msgEl?.querySelector('.msg-author')?.textContent?.replace('YOU','').trim() || 'Unknown';
+  replyingTo = { id: msgId, userId: msgUserId, text, username };
+  document.getElementById('reply-to-name').textContent = username;
+  document.getElementById('reply-to-preview').textContent = text.slice(0, 60) + (text.length > 60 ? '...' : '');
+  document.getElementById('reply-bar').classList.add('open');
+  document.getElementById('message-input').focus();
+}
+
+function cancelReply() {
+  replyingTo = null;
+  document.getElementById('reply-bar').classList.remove('open');
+}
+
+// ═══════════════════════════════════════
+// DELETE MESSAGE
+// ═══════════════════════════════════════
+function deleteMessage(msgId) {
+  if (!currentServerId || !currentChannelId) return;
+  // Remove from DOM
+  document.querySelector(`[data-mid="${msgId}"]`)?.remove();
+  // Remove from cache
+  if (messageCache[currentChannelId]) {
+    messageCache[currentChannelId] = messageCache[currentChannelId].filter(m => m.id !== msgId);
+  }
+  socket.emit('delete_message', { serverId: currentServerId, channelId: currentChannelId, messageId: msgId });
+}
+
+
 function autoResize(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 160) + 'px';
