@@ -306,11 +306,11 @@ input,textarea{font-family:inherit;}
 .hdr-btn:hover{background:var(--bg-modifier-hover);color:var(--interactive-active);}
 
 /* Messages */
-#messages-container{flex:1;overflow-y:auto;overflow-x:hidden;}
+#messages-container{flex:1;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;}
 #messages-list{
   display:flex;flex-direction:column;
-  padding:16px 0 0;
-  min-height:100%;justify-content:flex-end;
+  padding:16px 0 8px;
+  flex:1;
 }
 .date-separator{
   display:flex;align-items:center;gap:8px;
@@ -1196,12 +1196,17 @@ function renderMessages() {
     lastUserId = msg.userId;
     lastTs = msg.timestamp;
   });
-  scrollMessages();
+  scrollMessages(true);
 }
 
-function scrollMessages() {
+function scrollMessages(force) {
   const c = document.getElementById('messages-container');
-  c.scrollTop = c.scrollHeight;
+  const nearBottom = c.scrollHeight - c.scrollTop - c.clientHeight < 120;
+  if (!force && !nearBottom) return;
+  requestAnimationFrame(() => {
+    c.scrollTop = c.scrollHeight;
+    requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; });
+  });
 }
 
 function appendMessageEl(container, msg, compact, isDM) {
@@ -1310,7 +1315,10 @@ function renderDMMessages() {
     lastTs = msg.timestamp;
   });
   const c = document.getElementById('dm-messages-container');
-  c.scrollTop = c.scrollHeight;
+  requestAnimationFrame(() => {
+    c.scrollTop = c.scrollHeight;
+    requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; });
+  });
 }
 
 function sendDM() {
@@ -1635,7 +1643,8 @@ function connectSocket() {
       const gap = !prev || (message.timestamp - prev.timestamp > 5 * 60 * 1000);
       const compact = prev && prev.userId === message.userId && !gap;
       appendMessageEl(el, message, compact, false);
-      scrollMessages();
+      // Force scroll if it's your own message, otherwise only scroll if near bottom
+      scrollMessages(message.userId === currentUser.id);
       if (message.userId !== currentUser.id) playSound('msg');
     } else {
       const row = document.querySelector(`[data-chid="${channelId}"]`);
@@ -1659,7 +1668,10 @@ function connectSocket() {
       const gap = !prev || (message.timestamp - prev.timestamp > 5 * 60 * 1000);
       appendMessageEl(el, message, prev && prev.userId === message.userId && !gap, true);
       const c = document.getElementById('dm-messages-container');
-      c.scrollTop = c.scrollHeight;
+      requestAnimationFrame(() => {
+        c.scrollTop = c.scrollHeight;
+        requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; });
+      });
     }
     if (fromUserId !== currentUser.id) playSound('msg');
   });
