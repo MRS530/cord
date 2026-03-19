@@ -4,7 +4,7 @@ Cord is a real-time chat application inspired by Discord. Built entirely with No
 
 **[🔴 Check out the Live Demo](https://cord.up.railway.app/)**
 
-![Cord Screenshot](Screenshot 2026-03-19 114726.png)`)
+![Cord Screenshot](screenshot.png)`)
 
 ---
 
