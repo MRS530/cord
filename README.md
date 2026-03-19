@@ -1,10 +1,20 @@
 # 💬 Cord - Real-Time Chat
 
+[![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen.svg)](https://cord.up.railway.app/)
+[![Node.js](https://img.shields.io/badge/Node.js-Backend-43853D?logo=node.js)](https://nodejs.org/)
+[![Socket.io](https://img.shields.io/badge/Socket.io-Real--Time-black?logo=socket.io)](https://socket.io/)
+
 Cord is a real-time chat application inspired by Discord. Built entirely with Node.js, Socket.io, and Vanilla JS, it offers a seamless instant messaging experience complete with multi-channel support, live presence, and interactive message features.
 
 **[🔴 Check out the Live Demo](https://cord.up.railway.app/)**
 
-![Cord Screenshot](screenshot.png)`)
+<br />
+
+<div align="center">
+  <img src="./screenshot.png" alt="Cord Chat Interface" width="100%"/>
+</div>
+
+<br />
 
 ---
 
@@ -29,14 +39,3 @@ Cord is a real-time chat application inspired by Discord. Built entirely with No
 - **Deployment:** [Railway](https://railway.app/)
 
 ---
-
-## Project Structure
-
-```
-discord-clone/
-├── server.js          # Node.js + Socket.io backend server setup
-├── package.json       # Project metadata and dependencies
-├── public/
-│   └── index.html     # Full frontend UI (HTML, CSS, JS client logic)
-└── README.md          # Project documentation
-```
