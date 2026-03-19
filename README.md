@@ -11,7 +11,7 @@ Cord is a real-time chat application inspired by Discord. Built entirely with No
 <br />
 
 <div align="center">
-  <img src="./screenshot.png" alt="Cord Chat Interface" width="100%"/>
+  <img src="https://github.com/MRS530/cord/raw/main/screenshot" alt="Cord Chat Interface" width="100%"/>
 </div>
 
 <br />
@@ -39,3 +39,28 @@ Cord is a real-time chat application inspired by Discord. Built entirely with No
 - **Deployment:** [Railway](https://railway.app/)
 
 ---
+
+## 📁 Project Structure
+
+'''
+cord/
+├── server.js          # Node.js + Socket.io backend server setup
+├── package.json       # Project metadata and dependencies
+├── public/
+│   └── index.html     # Full frontend UI (HTML, CSS, JS client logic)
+└── README.md          # Project documentation
+'''
+
+## 🚀 Getting Started
+
+Want to run Cord locally on your machine? Follow these simple steps:
+
+### Prerequisites
+Make sure you have [Node.js](https://nodejs.org/) installed on your system.
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/MRS530/cord.git
+   cd cord
