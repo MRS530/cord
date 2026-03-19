@@ -9,7 +9,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── PostgreSQL ────────────────────────────────────────────────
@@ -38,6 +38,9 @@ async function setupDB() {
       password_hash TEXT NOT NULL,
       color TEXT NOT NULL,
       avatar TEXT NOT NULL,
+      avatar_url TEXT DEFAULT NULL,
+      bio TEXT DEFAULT '',
+      banner_color TEXT DEFAULT NULL,
       created_at BIGINT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS sessions (
@@ -71,6 +74,7 @@ async function setupDB() {
       username TEXT NOT NULL,
       color TEXT NOT NULL,
       avatar TEXT NOT NULL,
+      avatar_url TEXT DEFAULT NULL,
       text TEXT NOT NULL,
       reactions JSONB NOT NULL DEFAULT '{}',
       reply_to TEXT DEFAULT NULL,
@@ -94,6 +98,7 @@ async function setupDB() {
       username TEXT NOT NULL,
       color TEXT NOT NULL,
       avatar TEXT NOT NULL,
+      avatar_url TEXT DEFAULT NULL,
       text TEXT NOT NULL,
       timestamp BIGINT NOT NULL
     );
@@ -101,14 +106,19 @@ async function setupDB() {
     CREATE INDEX IF NOT EXISTS messages_channel_idx ON messages(channel_id, timestamp);
   `);
 
+  // Add new columns to existing tables if upgrading
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT DEFAULT NULL`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT DEFAULT ''`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS banner_color TEXT DEFAULT NULL`);
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS avatar_url TEXT DEFAULT NULL`);
+  await pool.query(`ALTER TABLE dm_messages ADD COLUMN IF NOT EXISTS avatar_url TEXT DEFAULT NULL`);
+
   // Seed default Lounge server if not exists
   const existing = await pool.query(`SELECT id FROM servers WHERE invite_code = 'lounge'`);
   if (!existing.rows.length) {
     const sid = uid();
-    await pool.query(
-      `INSERT INTO servers (id, name, icon, owner_id, invite_code) VALUES ($1,$2,$3,$4,$5)`,
-      [sid, 'Lounge', '🛋️', 'system', 'lounge']
-    );
+    await pool.query(`INSERT INTO servers (id,name,icon,owner_id,invite_code) VALUES ($1,$2,$3,$4,$5)`,
+      [sid, 'Lounge', '🛋️', 'system', 'lounge']);
     const channels = [
       { name: 'general', topic: 'General chat' },
       { name: 'announcements', topic: 'News & updates' },
@@ -116,16 +126,14 @@ async function setupDB() {
       { name: 'off-topic', topic: 'Random stuff' },
     ];
     for (let i = 0; i < channels.length; i++) {
-      await pool.query(
-        `INSERT INTO channels (id, server_id, name, topic, position) VALUES ($1,$2,$3,$4,$5)`,
-        [uid(), sid, channels[i].name, channels[i].topic, i]
-      );
+      await pool.query(`INSERT INTO channels (id,server_id,name,topic,position) VALUES ($1,$2,$3,$4,$5)`,
+        [uid(), sid, channels[i].name, channels[i].topic, i]);
     }
     console.log('Seeded default Lounge server');
   }
 }
 
-// ── In-memory caches ──────────────────────────────────────────
+// ── Caches ────────────────────────────────────────────────────
 const sessionCache = {};
 const presenceMap = {};
 
@@ -136,30 +144,29 @@ async function auth(req, res, next) {
     if (!tok) return res.status(401).json({ error: 'Unauthorized' });
     let userId = sessionCache[tok];
     if (!userId) {
-      const r = await pool.query(`SELECT user_id FROM sessions WHERE token = $1`, [tok]);
+      const r = await pool.query(`SELECT user_id FROM sessions WHERE token=$1`, [tok]);
       if (!r.rows.length) return res.status(401).json({ error: 'Unauthorized' });
       userId = r.rows[0].user_id;
       sessionCache[tok] = userId;
     }
-    const r = await pool.query(`SELECT * FROM users WHERE id = $1`, [userId]);
+    const r = await pool.query(`SELECT * FROM users WHERE id=$1`, [userId]);
     if (!r.rows.length) return res.status(401).json({ error: 'Unauthorized' });
     req.user = r.rows[0];
     next();
-  } catch (e) {
-    res.status(500).json({ error: 'Server error' });
-  }
+  } catch (e) { res.status(500).json({ error: 'Server error' }); }
 }
 
 function safeUser(u) {
   return {
     id: u.id, username: u.username, displayName: u.display_name,
-    color: u.color, avatar: u.avatar,
+    color: u.color, avatar: u.avatar, avatarUrl: u.avatar_url || null,
+    bio: u.bio || '', bannerColor: u.banner_color || null,
     status: presenceMap[u.id] || 'offline',
     friends: [], servers: [],
   };
 }
 
-// ── Register ──────────────────────────────────────────────────
+// ── Auth ──────────────────────────────────────────────────────
 app.post('/api/register', async (req, res) => {
   try {
     const { username, password, displayName } = req.body;
@@ -173,9 +180,7 @@ app.post('/api/register', async (req, res) => {
       [id, username, displayName || username, hash(password), colorFor(username), username.slice(0,2).toUpperCase(), Date.now()]
     );
     const lounge = await pool.query(`SELECT id FROM servers WHERE invite_code='lounge'`);
-    if (lounge.rows.length) {
-      await pool.query(`INSERT INTO server_members VALUES ($1,$2) ON CONFLICT DO NOTHING`, [lounge.rows[0].id, id]);
-    }
+    if (lounge.rows.length) await pool.query(`INSERT INTO server_members VALUES ($1,$2) ON CONFLICT DO NOTHING`, [lounge.rows[0].id, id]);
     const tok = token();
     await pool.query(`INSERT INTO sessions (token,user_id) VALUES ($1,$2)`, [tok, id]);
     sessionCache[tok] = id;
@@ -184,7 +189,6 @@ app.post('/api/register', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Server error' }); }
 });
 
-// ── Login ─────────────────────────────────────────────────────
 app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -198,13 +202,44 @@ app.post('/api/login', async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Server error' }); }
 });
 
+// ── Profile update ────────────────────────────────────────────
+app.post('/api/profile', auth, async (req, res) => {
+  try {
+    const { displayName, bio, bannerColor, avatarUrl } = req.body;
+    const fields = [];
+    const vals = [];
+    let i = 1;
+    if (displayName !== undefined) { fields.push(`display_name=$${i++}`); vals.push(displayName.slice(0,32)); }
+    if (bio !== undefined) { fields.push(`bio=$${i++}`); vals.push(bio.slice(0,190)); }
+    if (bannerColor !== undefined) { fields.push(`banner_color=$${i++}`); vals.push(bannerColor); }
+    if (avatarUrl !== undefined) { fields.push(`avatar_url=$${i++}`); vals.push(avatarUrl); }
+    if (!fields.length) return res.json({ user: safeUser(req.user) });
+    vals.push(req.user.id);
+    await pool.query(`UPDATE users SET ${fields.join(',')} WHERE id=$${i}`, vals);
+    const updated = (await pool.query(`SELECT * FROM users WHERE id=$1`, [req.user.id])).rows[0];
+    res.json({ user: safeUser(updated) });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Server error' }); }
+});
+
+// ── Cloudinary signature for direct upload ────────────────────
+app.get('/api/cloudinary-signature', auth, (req, res) => {
+  const timestamp = Math.round(Date.now() / 1000);
+  const params = `timestamp=${timestamp}`;
+  const signature = crypto.createHash('sha256')
+    .update(params + process.env.CLOUDINARY_API_SECRET)
+    .digest('hex');
+  res.json({
+    signature,
+    timestamp,
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+  });
+});
+
 // ── Servers ───────────────────────────────────────────────────
 app.get('/api/servers', auth, async (req, res) => {
   try {
-    const r = await pool.query(`
-      SELECT s.id,s.name,s.icon,s.invite_code FROM servers s
-      JOIN server_members sm ON sm.server_id=s.id WHERE sm.user_id=$1
-    `, [req.user.id]);
+    const r = await pool.query(`SELECT s.id,s.name,s.icon,s.invite_code FROM servers s JOIN server_members sm ON sm.server_id=s.id WHERE sm.user_id=$1`, [req.user.id]);
     const servers = await Promise.all(r.rows.map(async s => {
       const ch = await pool.query(`SELECT id,name,topic FROM channels WHERE server_id=$1 ORDER BY position`, [s.id]);
       return { id: s.id, name: s.name, icon: s.icon, inviteCode: s.invite_code, channels: ch.rows };
@@ -263,13 +298,11 @@ app.post('/api/servers/:sid/channels', auth, async (req, res) => {
 // ── Messages ──────────────────────────────────────────────────
 app.get('/api/servers/:sid/channels/:cid/messages', auth, async (req, res) => {
   try {
-    const r = await pool.query(
-      `SELECT * FROM messages WHERE channel_id=$1 ORDER BY timestamp ASC LIMIT 100`, [req.params.cid]
-    );
+    const r = await pool.query(`SELECT * FROM messages WHERE channel_id=$1 ORDER BY timestamp ASC LIMIT 100`, [req.params.cid]);
     res.json(r.rows.map(m => ({
       id: m.id, userId: m.user_id, username: m.username,
-      color: m.color, avatar: m.avatar, text: m.text,
-      reactions: m.reactions, timestamp: Number(m.timestamp),
+      color: m.color, avatar: m.avatar, avatarUrl: m.avatar_url,
+      text: m.text, reactions: m.reactions, timestamp: Number(m.timestamp),
       replyTo: m.reply_to, replyToName: m.reply_to_name,
     })));
   } catch (e) { console.error(e); res.status(500).json({ error: 'Server error' }); }
@@ -295,7 +328,6 @@ app.post('/api/friends/request', auth, async (req, res) => {
       return res.status(400).json({ error: 'Already friends' });
     if ((await pool.query(`SELECT 1 FROM friend_requests WHERE from_id=$1 AND to_id=$2`, [req.user.id, t.id])).rows.length)
       return res.status(400).json({ error: 'Request already sent' });
-    // Auto-accept if they already sent us one
     if ((await pool.query(`SELECT 1 FROM friend_requests WHERE from_id=$1 AND to_id=$2`, [t.id, req.user.id])).rows.length) {
       await pool.query(`DELETE FROM friend_requests WHERE from_id=$1 AND to_id=$2`, [t.id, req.user.id]);
       await pool.query(`INSERT INTO friends VALUES ($1,$2),($2,$1) ON CONFLICT DO NOTHING`, [req.user.id, t.id]);
@@ -333,7 +365,8 @@ app.get('/api/dm/:userId/messages', auth, async (req, res) => {
     const r = await pool.query(`SELECT * FROM dm_messages WHERE dm_key=$1 ORDER BY timestamp ASC LIMIT 100`, [key]);
     res.json(r.rows.map(m => ({
       id: m.id, userId: m.user_id, username: m.username,
-      color: m.color, avatar: m.avatar, text: m.text, timestamp: Number(m.timestamp)
+      color: m.color, avatar: m.avatar, avatarUrl: m.avatar_url,
+      text: m.text, timestamp: Number(m.timestamp)
     })));
   } catch (e) { console.error(e); res.status(500).json({ error: 'Server error' }); }
 });
@@ -362,31 +395,28 @@ io.on('connection', async (socket) => {
   presenceMap[user.id] = 'online';
   socket.join('user:' + user.id);
 
-  // Join all channel rooms this user has access to
-  const chs = await pool.query(`
-    SELECT c.id FROM channels c
-    JOIN server_members sm ON sm.server_id=c.server_id
-    WHERE sm.user_id=$1
-  `, [user.id]);
+  const chs = await pool.query(`SELECT c.id FROM channels c JOIN server_members sm ON sm.server_id=c.server_id WHERE sm.user_id=$1`, [user.id]);
   chs.rows.forEach(r => socket.join('ch:' + r.id));
 
   io.emit('presence_update', { userId: user.id, status: 'online' });
 
   socket.on('send_message', async ({ channelId, serverId, text, replyTo, replyToName }) => {
     if (!text?.trim()) return;
+    // Re-fetch user to get latest avatar_url/display_name
+    const fresh = (await pool.query(`SELECT * FROM users WHERE id=$1`, [user.id])).rows[0];
     const mem = await pool.query(`SELECT 1 FROM server_members WHERE server_id=$1 AND user_id=$2`, [serverId, user.id]);
     if (!mem.rows.length) return;
     const ch = await pool.query(`SELECT 1 FROM channels WHERE id=$1 AND server_id=$2`, [channelId, serverId]);
     if (!ch.rows.length) return;
     const msg = {
-      id: uid(), userId: user.id, username: user.display_name,
-      color: user.color, avatar: user.avatar,
+      id: uid(), userId: user.id, username: fresh.display_name,
+      color: fresh.color, avatar: fresh.avatar, avatarUrl: fresh.avatar_url || null,
       text: text.trim(), timestamp: Date.now(), reactions: {},
       replyTo: replyTo || null, replyToName: replyToName || null,
     };
     await pool.query(
-      `INSERT INTO messages (id,channel_id,user_id,username,color,avatar,text,reactions,reply_to,reply_to_name,timestamp) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [msg.id, channelId, msg.userId, msg.username, msg.color, msg.avatar, msg.text, JSON.stringify({}), msg.replyTo, msg.replyToName, msg.timestamp]
+      `INSERT INTO messages (id,channel_id,user_id,username,color,avatar,avatar_url,text,reactions,reply_to,reply_to_name,timestamp) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [msg.id, channelId, msg.userId, msg.username, msg.color, msg.avatar, msg.avatarUrl, msg.text, JSON.stringify({}), msg.replyTo, msg.replyToName, msg.timestamp]
     );
     await pool.query(`DELETE FROM messages WHERE id IN (SELECT id FROM messages WHERE channel_id=$1 ORDER BY timestamp ASC OFFSET 200)`, [channelId]);
     io.to('ch:' + channelId).emit('new_message', { channelId, serverId, message: msg });
@@ -395,7 +425,7 @@ io.on('connection', async (socket) => {
   socket.on('delete_message', async ({ serverId, channelId, messageId }) => {
     const msg = await pool.query(`SELECT * FROM messages WHERE id=$1 AND channel_id=$2`, [messageId, channelId]);
     if (!msg.rows.length) return;
-    if (msg.rows[0].user_id !== user.id) return; // can only delete own
+    if (msg.rows[0].user_id !== user.id) return;
     await pool.query(`DELETE FROM messages WHERE id=$1`, [messageId]);
     io.to('ch:' + channelId).emit('message_deleted', { channelId, messageId });
   });
@@ -404,15 +434,16 @@ io.on('connection', async (socket) => {
     if (!text?.trim()) return;
     const target = await pool.query(`SELECT * FROM users WHERE id=$1`, [toUserId]);
     if (!target.rows.length) return;
+    const fresh = (await pool.query(`SELECT * FROM users WHERE id=$1`, [user.id])).rows[0];
     const key = [user.id, toUserId].sort().join(':');
     const msg = {
-      id: uid(), userId: user.id, username: user.display_name,
-      color: user.color, avatar: user.avatar,
+      id: uid(), userId: user.id, username: fresh.display_name,
+      color: fresh.color, avatar: fresh.avatar, avatarUrl: fresh.avatar_url || null,
       text: text.trim(), timestamp: Date.now()
     };
     await pool.query(
-      `INSERT INTO dm_messages (id,dm_key,user_id,username,color,avatar,text,timestamp) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [msg.id, key, msg.userId, msg.username, msg.color, msg.avatar, msg.text, msg.timestamp]
+      `INSERT INTO dm_messages (id,dm_key,user_id,username,color,avatar,avatar_url,text,timestamp) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [msg.id, key, msg.userId, msg.username, msg.color, msg.avatar, msg.avatarUrl, msg.text, msg.timestamp]
     );
     io.to('user:' + toUserId).emit('new_dm', { fromUserId: user.id, message: msg });
     socket.emit('new_dm', { fromUserId: user.id, message: msg });
