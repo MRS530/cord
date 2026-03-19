@@ -42,14 +42,14 @@ Cord is a real-time chat application inspired by Discord. Built entirely with No
 
 ## 📁 Project Structure
 
-'''
+```
 cord/
 ├── server.js          # Node.js + Socket.io backend server setup
 ├── package.json       # Project metadata and dependencies
 ├── public/
 │   └── index.html     # Full frontend UI (HTML, CSS, JS client logic)
 └── README.md          # Project documentation
-'''
+```
 
 ## 🚀 Getting Started
 
